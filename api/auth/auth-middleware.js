@@ -1,3 +1,14 @@
+const { findBy } = require("../users/users-model");
+const User = require("../users/users-model");
+
+function checkPayload(req, res, next) {
+  if (!req.body.username || !req.body.password) {
+    res.status(401).json("Username and password required");
+  } else {
+    next();
+  }
+}
+
 /*
   If the user does not have a session saved in the server
 
@@ -6,8 +17,12 @@
     "message": "You shall not pass!"
   }
 */
-function restricted() {
-
+function restricted(req, res, next) {
+  if (req.session && req.session.user) {
+    next();
+  } else {
+    res.status(401).json("You shall not pass!");
+  }
 }
 
 /*
@@ -18,8 +33,13 @@ function restricted() {
     "message": "Username taken"
   }
 */
-function checkUsernameFree() {
-
+async function checkUsernameFree(req, res, next) {
+  const users = await findBy({ username: req.body.username });
+  if (users.length) {
+    res.status(422).json("Username taken");
+  } else {
+    next();
+  }
 }
 
 /*
@@ -30,8 +50,18 @@ function checkUsernameFree() {
     "message": "Invalid credentials"
   }
 */
-function checkUsernameExists() {
-
+async function checkUsernameExists(req, res, next) {
+  try {
+    const rows = await User.findBy({ username: req.body.username });
+    if (rows.length) {
+      req.userData = rows[0];
+      next();
+    } else {
+      res.status(401).json("Invalid credentials");
+    }
+  } catch (e) {
+    res.status(500).json(`Server error: ${e.message}`);
+  }
 }
 
 /*
@@ -42,8 +72,20 @@ function checkUsernameExists() {
     "message": "Password must be longer than 3 chars"
   }
 */
-function checkPasswordLength() {
-
+function checkPasswordLength(req, res, next) {
+  if (!req.body.password || req.body.password.length < 3) {
+    res.status(422).json("Password must be longer than 3 chars");
+  } else {
+    next();
+  }
 }
+
+module.exports = {
+  restricted,
+  checkUsernameFree,
+  checkUsernameExists,
+  checkPasswordLength,
+  checkPayload,
+};
 
 // Don't forget to add these to the `exports` object so they can be required in other modules
